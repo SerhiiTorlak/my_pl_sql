@@ -12,23 +12,23 @@ begin
                order by e.FIRST_NAME)
         loop
             if cc.MANAGER_ID = 100 then
-                DBMS_OUTPUT.put_line('—п≥вроб≥тник - ' || cc.emp_name || ', в≥дсоток до зарплати нараз≥ заборонений');
+                DBMS_OUTPUT.put_line('Співробітник - ' || cc.emp_name || ', відсоток до зарплати наразі заборонений');
                 continue;
             end if;
 
             if cc.percent_of_salary between 10 and 20 then
-                v_def_percent := 'м≥н≥мальний';
+                v_def_percent := 'мінімальний';
             elsif cc.percent_of_salary between 25 and 30 then
-                v_def_percent := 'середн≥й';
+                v_def_percent := 'середній';
             elsif cc.percent_of_salary between 35 and 40 then
                 v_def_percent := 'максимальний';
             end if;
 
             v_percent := concat(cc.percent_of_salary, '%');
 
-            DBMS_OUTPUT.put_line('—п≥вроб≥тник - ' || cc.emp_name ||
-                                 '; в≥дсоток до зарплати - ' || v_percent ||
-                                 '; опис в≥дсотку - ' || v_def_percent);
+            DBMS_OUTPUT.put_line('Співробітник - ' || cc.emp_name ||
+                                 '; відсоток до зарплати - ' || v_percent ||
+                                 '; опис відсотку - ' || v_def_percent);
 
         end loop;
 
