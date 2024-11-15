@@ -1,6 +1,6 @@
 CREATE PACKAGE BODY log_util AS
 
-    --процедура запису в таблицю логів
+    --recording in the log table
     PROCEDURE to_log(p_appl_proc IN VARCHAR2,
                      p_message IN VARCHAR2) IS
         PRAGMA autonomous_transaction;
