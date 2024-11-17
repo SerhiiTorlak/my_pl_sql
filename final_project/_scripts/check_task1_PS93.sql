@@ -1,7 +1,7 @@
 --перевіримо таблицю логів
 SELECT *
 FROM logs
-where trunc(LOG_DATE, 'DD') = trunc(sysdate, 'DD')
+where trunc(LOG_DATE, 'DD') > date '2024-11-13'
 ;
 
 BEGIN
