@@ -63,6 +63,8 @@ create PACKAGE util AS
                            p_manager_id IN NUMBER DEFAULT 100,
                            p_department_id IN NUMBER);
 
+    PROCEDURE fire_an_employee(p_employee_id IN NUMBER);
+
 END util;
 /
 
@@ -396,86 +398,138 @@ create PACKAGE BODY util AS
             raise_application_error(-20001, NVL(v_message, 'Невідома помилка'));
     END update_balance;
 
-        PROCEDURE add_employee(p_first_name IN VARCHAR2,
-                              p_last_name IN VARCHAR2,
-                              p_email IN VARCHAR2,
-                              p_phone_number IN VARCHAR2,
-                              p_hire_date IN DATE DEFAULT trunc(SYSDATE, 'dd'),
-                              p_job_id IN VARCHAR2,
-                              p_salary IN NUMBER,
-                              p_commission_pct IN NUMBER DEFAULT NULL,
-                              p_manager_id IN NUMBER DEFAULT 100,
-                              p_department_id IN NUMBER) IS
+    PROCEDURE add_employee(p_first_name IN VARCHAR2,
+                           p_last_name IN VARCHAR2,
+                           p_email IN VARCHAR2,
+                           p_phone_number IN VARCHAR2,
+                           p_hire_date IN DATE DEFAULT trunc(SYSDATE, 'dd'),
+                           p_job_id IN VARCHAR2,
+                           p_salary IN NUMBER,
+                           p_commission_pct IN NUMBER DEFAULT NULL,
+                           p_manager_id IN NUMBER DEFAULT 100,
+                           p_department_id IN NUMBER) IS
 
-    v_message logs.message%TYPE;
+        v_message logs.message%TYPE;
 
-BEGIN
-
-    log_util.log_start(p_proc_name => 'add_employee');
-
-    --перевіримо для початку робочий час
-    IF NOT check_work_time() THEN
-        v_message := 'Ви можете додавати нового співробітника лише в робочий час';
-        raise_application_error(-20001, v_message);
-    END IF;
-
-    --перевіряємо, чи існує запрошений job_id
-    <<search_job_id>>
-    FOR c IN (
-        SELECT 1
-        FROM jobs j
-        WHERE j.job_id = p_job_id
-        HAVING COUNT(*) = 0)
-        LOOP
-            v_message := 'Введено неіснуючий код посади';
-            raise_application_error(-20002, v_message);
-        END LOOP search_job_id;
-
-    --перевіряємо, чи існує запрошений department_id
-    <<search_department_id>>
-    FOR c IN (
-        SELECT 1
-        FROM departments d
-        WHERE d.department_id = p_department_id
-        HAVING COUNT(*) = 0)
-        LOOP
-            v_message := 'Введено неіснуючий ідентифікатор відділу';
-            raise_application_error(-20003, v_message);
-        END LOOP search_department_id;
-
-    --перевіряємо зарплату
-    <<search_salary>>
-    FOR c IN (
-        SELECT 1
-        FROM jobs j
-        WHERE p_salary BETWEEN j.min_salary AND j.max_salary
-        HAVING COUNT(*) = 0)
-        LOOP
-            v_message := 'Введено неприпустиму заробітну плату для даного коду посади';
-            raise_application_error(-20004, v_message);
-        END LOOP search_salary;
-
-    --insert new employee into the table
-    <<insert_new_emp>>
     BEGIN
-        INSERT INTO employees (employee_id, first_name, last_name, email, phone_number, hire_date, job_id, salary,
-                               commission_pct, manager_id, department_id)
-        VALUES (emp_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone_number, p_hire_date, p_job_id, p_salary,
-                p_commission_pct, p_manager_id, p_department_id);
 
-        dbms_output.put_line('Співробітник ' || p_first_name || ' ' || p_last_name || ', ' || p_job_id || ', ' ||
-                             p_department_id || ' успішно додано до системи');
+        log_util.log_start(p_proc_name => 'add_employee');
 
-    EXCEPTION
-        WHEN OTHERS THEN log_util.log_error(p_proc_name => 'add_employee', p_sqlerrm => SQLERRM);
-        RAISE;
+        --перевіримо для початку робочий час
+        IF NOT check_work_time() THEN
+            v_message := 'Ви можете додавати нового співробітника лише в робочий час';
+            raise_application_error(-20001, v_message);
+        END IF;
 
-    END insert_new_emp;
+        --перевіряємо, чи існує запрошений job_id
+        <<search_job_id>>
+        FOR c IN (
+            SELECT 1
+            FROM jobs j
+            WHERE j.job_id = p_job_id
+            HAVING COUNT(*) = 0)
+            LOOP
+                v_message := 'Введено неіснуючий код посади';
+                raise_application_error(-20002, v_message);
+            END LOOP search_job_id;
 
-    log_util.log_finish(p_proc_name => 'add_employee');
+        --перевіряємо, чи існує запрошений department_id
+        <<search_department_id>>
+        FOR c IN (
+            SELECT 1
+            FROM departments d
+            WHERE d.department_id = p_department_id
+            HAVING COUNT(*) = 0)
+            LOOP
+                v_message := 'Введено неіснуючий ідентифікатор відділу';
+                raise_application_error(-20003, v_message);
+            END LOOP search_department_id;
 
-END add_employee;
+        --перевіряємо зарплату
+        <<search_salary>>
+        FOR c IN (
+            SELECT 1
+            FROM jobs j
+            WHERE p_salary BETWEEN j.min_salary AND j.max_salary
+            HAVING COUNT(*) = 0)
+            LOOP
+                v_message := 'Введено неприпустиму заробітну плату для даного коду посади';
+                raise_application_error(-20004, v_message);
+            END LOOP search_salary;
+
+        --insert new employee into the table
+        <<insert_new_emp>>
+        BEGIN
+            INSERT INTO employees (employee_id, first_name, last_name, email, phone_number, hire_date, job_id, salary,
+                                   commission_pct, manager_id, department_id)
+            VALUES (emp_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone_number, p_hire_date, p_job_id,
+                    p_salary,
+                    p_commission_pct, p_manager_id, p_department_id);
+
+            dbms_output.put_line('Співробітник ' || p_first_name || ' ' || p_last_name || ', ' || p_job_id || ', ' ||
+                                 p_department_id || ' успішно додано до системи');
+
+        EXCEPTION
+            WHEN OTHERS THEN log_util.log_error(p_proc_name => 'add_employee', p_sqlerrm => SQLERRM);
+            RAISE;
+
+        END insert_new_emp;
+
+        log_util.log_finish(p_proc_name => 'add_employee');
+
+    END add_employee;
+
+    PROCEDURE fire_an_employee(p_employee_id IN NUMBER) IS
+
+        v_emp_name   employees.first_name%TYPE;
+        v_emp_l_name employees.last_name%TYPE;
+        v_job_id     employees.job_id%TYPE;
+        v_dep_id     employees.department_id%TYPE;
+        v_del_no_data_found EXCEPTION;
+
+    BEGIN
+
+        log_util.log_start(p_proc_name => 'fire_an_employee');
+
+        --перевіримо для початку робочий час
+        IF NOT check_work_time() THEN
+            v_message := 'Ви можете видаляти співробітника лише в робочий час';
+            raise_application_error(-20001, v_message);
+        END IF;
+
+        SELECT e.first_name, e.last_name, e.job_id, e.department_id
+        INTO v_emp_name, v_emp_l_name, v_job_id, v_dep_id
+        FROM employees e
+        WHERE e.employee_id = p_employee_id;
+
+        BEGIN
+            DELETE
+            FROM employees e
+            WHERE e.employee_id = p_employee_id;
+
+            IF SQL%rowcount = 0 THEN
+                RAISE v_del_no_data_found;
+            END IF;
+
+        EXCEPTION
+            WHEN v_del_no_data_found
+                THEN raise_application_error(-20005,
+                                             'Переданий співробітник ' || p_employee_id || ' не існує. Код помилки: ' ||
+                                             SQLERRM);
+            WHEN OTHERS THEN
+                log_util.log_error(p_proc_name => 'fire_an_employee', p_sqlerrm => SQLERRM);
+                raise_application_error(-20006, 'При видаленні співробітника виникла помилка. Подробиці: ' || SQLERRM);
+        END;
+
+        dbms_output.put_line('Співробітник ' || v_emp_name || ' ' || v_emp_l_name || ', ' || v_job_id || ', ' ||
+                             v_dep_id ||
+                             ' успішно видалений');
+
+        log_util.log_finish(p_proc_name => 'fire_an_employee', p_text => 'Працівник успішно видалений.');
+
+        COMMIT;
+
+    END fire_an_employee;
 
 end util;
 /
-
