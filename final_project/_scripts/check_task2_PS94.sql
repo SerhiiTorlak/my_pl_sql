@@ -17,7 +17,7 @@ BEGIN
                  p_last_name => 'Fay',
                  p_email => 'WFAY',
                  p_phone_number => '603.123.6666',
-                 p_job_id => 'MK_',
+                 p_job_id => 'MK_REP',
                  p_salary => 6000,
                  p_department_id => 100);
 END;

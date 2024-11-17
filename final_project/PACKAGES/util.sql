@@ -271,7 +271,8 @@ create PACKAGE BODY util AS
 
     BEGIN
         IF to_char(SYSDATE, 'DY', 'NLS_DATE_LANGUAGE = AMERICAN') IN ('SAT', 'SUN')
-            OR to_char(SYSDATE, 'HH24:MI') BETWEEN '18:01' AND '07:59' THEN
+            OR to_char(SYSDATE, 'HH24:MI') <= '07:59'
+            OR to_char(SYSDATE, 'HH24:MI') >= '18:01' THEN
             v_check := FALSE;
         ELSE
             v_check := TRUE;
@@ -485,7 +486,7 @@ create PACKAGE BODY util AS
         v_emp_l_name employees.last_name%TYPE;
         v_job_id     employees.job_id%TYPE;
         v_dep_id     employees.department_id%TYPE;
-        v_del_no_data_found EXCEPTION;
+        v_message    logs.message%TYPE;
 
     BEGIN
 
@@ -502,34 +503,32 @@ create PACKAGE BODY util AS
         FROM employees e
         WHERE e.employee_id = p_employee_id;
 
+        <<delete_emp>>
         BEGIN
             DELETE
             FROM employees e
             WHERE e.employee_id = p_employee_id;
 
-            IF SQL%rowcount = 0 THEN
-                RAISE v_del_no_data_found;
-            END IF;
-
         EXCEPTION
-            WHEN v_del_no_data_found
-                THEN raise_application_error(-20005,
-                                             'Переданий співробітник ' || p_employee_id || ' не існує. Код помилки: ' ||
-                                             SQLERRM);
             WHEN OTHERS THEN
                 log_util.log_error(p_proc_name => 'fire_an_employee', p_sqlerrm => SQLERRM);
                 raise_application_error(-20006, 'При видаленні співробітника виникла помилка. Подробиці: ' || SQLERRM);
-        END;
+        END delete_emp;
 
         dbms_output.put_line('Співробітник ' || v_emp_name || ' ' || v_emp_l_name || ', ' || v_job_id || ', ' ||
-                             v_dep_id ||
-                             ' успішно видалений');
+                             v_dep_id || ' успішно видалений');
 
         log_util.log_finish(p_proc_name => 'fire_an_employee', p_text => 'Працівник успішно видалений.');
 
         COMMIT;
 
+    EXCEPTION
+        WHEN no_data_found
+            THEN raise_application_error(-20005,
+                                         'Переданий співробітник ' || p_employee_id || ' не існує. Код помилки: ' ||
+                                         SQLERRM);
+
     END fire_an_employee;
 
-end util;
+END util;
 /
