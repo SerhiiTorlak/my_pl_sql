@@ -553,7 +553,6 @@ create PACKAGE BODY util AS
                                         p_department_id IN NUMBER DEFAULT NULL) IS
 
         v_message  logs.message%TYPE;
-        v_user     VARCHAR2(50);
         v_step     NUMBER := 0;
         v_sql_part VARCHAR2(500);
         v_sql      VARCHAR2(500);
@@ -589,10 +588,6 @@ create PACKAGE BODY util AS
                 raise_application_error(-20004, v_message);
             END LOOP search_employee;
 
-        SELECT user
-        INTO v_user
-        FROM dual;
-
         <<create_sql>>
         FOR c IN (SELECT col_name, col_val
                   FROM (SELECT column_name                              as col_name,
@@ -607,7 +602,7 @@ create PACKAGE BODY util AS
                                       'manager_id', p_manager_id,
                                       'department_id', p_department_id) as col_val
                         FROM ALL_TAB_COLUMNS
-                        WHERE OWNER = v_user
+                        WHERE OWNER = USER
                           AND TABLE_NAME = 'EMPLOYEES')
                   WHERE col_val IS NOT NULL )
             LOOP
