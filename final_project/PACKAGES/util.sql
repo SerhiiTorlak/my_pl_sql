@@ -66,15 +66,21 @@ create PACKAGE util AS
     PROCEDURE fire_an_employee(p_employee_id IN NUMBER);
 
     PROCEDURE change_attribute_employee(p_employee_id IN NUMBER,
-                                           p_first_name IN VARCHAR2 DEFAULT NULL,
-                                           p_last_name IN VARCHAR2 DEFAULT NULL,
-                                           p_email IN VARCHAR2 DEFAULT NULL,
-                                           p_phone_number IN VARCHAR2 DEFAULT NULL,
-                                           p_job_id IN VARCHAR2 DEFAULT NULL,
-                                           p_salary IN NUMBER DEFAULT NULL,
-                                           p_commission_pct IN NUMBER DEFAULT NULL,
-                                           p_manager_id IN NUMBER DEFAULT NULL,
-                                           p_department_id IN NUMBER DEFAULT NULL);
+                                        p_first_name IN VARCHAR2 DEFAULT NULL,
+                                        p_last_name IN VARCHAR2 DEFAULT NULL,
+                                        p_email IN VARCHAR2 DEFAULT NULL,
+                                        p_phone_number IN VARCHAR2 DEFAULT NULL,
+                                        p_job_id IN VARCHAR2 DEFAULT NULL,
+                                        p_salary IN NUMBER DEFAULT NULL,
+                                        p_commission_pct IN NUMBER DEFAULT NULL,
+                                        p_manager_id IN NUMBER DEFAULT NULL,
+                                        p_department_id IN NUMBER DEFAULT NULL);
+
+    PROCEDURE copy_table(p_source_scheme IN VARCHAR2,
+                         p_target_scheme IN VARCHAR2 DEFAULT USER,
+                         p_list_table IN VARCHAR2,
+                         p_copy_data IN BOOLEAN DEFAULT FALSE,
+                         po_result OUT VARCHAR2);
 
 END util;
 /
@@ -541,95 +547,87 @@ create PACKAGE BODY util AS
 
     END fire_an_employee;
 
-    PROCEDURE change_attribute_employee(p_employee_id IN NUMBER,
-                                        p_first_name IN VARCHAR2 DEFAULT NULL,
-                                        p_last_name IN VARCHAR2 DEFAULT NULL,
-                                        p_email IN VARCHAR2 DEFAULT NULL,
-                                        p_phone_number IN VARCHAR2 DEFAULT NULL,
-                                        p_job_id IN VARCHAR2 DEFAULT NULL,
-                                        p_salary IN NUMBER DEFAULT NULL,
-                                        p_commission_pct IN NUMBER DEFAULT NULL,
-                                        p_manager_id IN NUMBER DEFAULT NULL,
-                                        p_department_id IN NUMBER DEFAULT NULL) IS
+    PROCEDURE copy_table(p_source_scheme IN VARCHAR2,
+                         p_target_scheme IN VARCHAR2 DEFAULT USER,
+                         p_list_table IN VARCHAR2,
+                         p_copy_data IN BOOLEAN DEFAULT FALSE,
+                         po_result OUT VARCHAR2) IS
 
-        v_message  logs.message%TYPE;
-        v_step     NUMBER := 0;
-        v_sql_part VARCHAR2(500);
-        v_sql      VARCHAR2(500);
+        v_source_scheme VARCHAR2(50)  := UPPER(p_source_scheme);
+        v_target_scheme VARCHAR2(50)  := UPPER(p_target_scheme);
+        v_list_table    VARCHAR2(250) := UPPER(p_list_table);
+        v_ddl_code      VARCHAR2(500);
+        v_step          NUMBER        := 0;
+        v_condition     VARCHAR2(14)  := '';
+        v_count         NUMBER;
+        v_message       VARCHAR2(250);
 
     BEGIN
 
-        log_util.log_start(p_proc_name => 'change_attribute_employee');
-
-        IF COALESCE(p_first_name,
-                    p_last_name,
-                    p_email,
-                    p_phone_number,
-                    p_job_id,
-                    to_char(p_salary),
-                    to_char(p_commission_pct),
-                    to_char(p_manager_id),
-                    to_char(p_department_id)) IS NULL THEN
-
-            log_util.log_finish(p_proc_name => 'change_attribute_employee', p_text => 'Немає данних для оновлення.');
-            raise_application_error(-20007, 'Не вказаний жоден із параметрів для оновлення');
-
+        --перевіряємо, чи треба копіювати вміст таблиці
+        IF NOT p_copy_data THEN
+            v_condition := ' WHERE 1 != 1';
         END IF;
 
-        --перевіряємо, чи є такий працівник
-        <<search_employee>>
+        <<table_processing>>
         FOR c IN (
-            SELECT 1
-            FROM employees e
-            WHERE e.employee_id = p_employee_id
-            HAVING COUNT(*) = 0)
-            LOOP
-                v_message := 'Працівника з таким ід немає';
-                raise_application_error(-20004, v_message);
-            END LOOP search_employee;
-
-        <<create_sql>>
-        FOR c IN (SELECT col_name, col_val
-                  FROM (SELECT column_name                              as col_name,
-                               DECODE(LOWER(column_name),
-                                      'first_name', p_first_name,
-                                      'last_name', p_last_name,
-                                      'email', p_email,
-                                      'phone_number', p_phone_number,
-                                      'job_id', p_job_id,
-                                      'salary', p_salary,
-                                      'commission_pct', p_commission_pct,
-                                      'manager_id', p_manager_id,
-                                      'department_id', p_department_id) as col_val
-                        FROM ALL_TAB_COLUMNS
-                        WHERE OWNER = USER
-                          AND TABLE_NAME = 'EMPLOYEES')
-                  WHERE col_val IS NOT NULL )
+            SELECT table_name
+            FROM all_tables at
+            WHERE OWNER = v_source_scheme
+              and table_name in (select value_list
+                                 from TABLE (util.TABLE_FROM_LIST(v_list_table))))
             LOOP
 
-                v_sql_part :=
-                        v_sql_part || CASE v_step WHEN 0 THEN '' ELSE ',' END
-                            || c.col_name || '=''' || c.col_val || ''' ';
+                v_ddl_code := 'CREATE TABLE ' || v_target_scheme || '.' || c.table_name || ' AS ' ||
+                              'SELECT * FROM ' || v_source_scheme || '.' || c.table_name || v_condition;
                 v_step := v_step + 1;
-            END LOOP create_sql;
 
-        v_sql := 'UPDATE employees SET ' || v_sql_part || ' WHERE employee_id = ' || p_employee_id;
+                <<ddl_execution>>
+                BEGIN
 
-        BEGIN
-            EXECUTE IMMEDIATE v_sql;
-            v_message := 'У співробітника ' || p_employee_id || ' успішно оновлені атрибути';
-            dbms_output.put_line(v_message);
-            --COMMIT;
+                    SELECT COUNT(*)
+                    INTO v_count
+                    FROM all_tables
+                    WHERE owner = v_target_scheme
+                      AND table_name = c.table_name;
 
-        EXCEPTION
-            WHEN OTHERS THEN
-                log_util.log_error(p_proc_name => 'change_attribute_employee', p_sqlerrm => SQLERRM);
-                raise_application_error(-20001, 'При зміні атрибутів виникла помилка. Подробиці: ' || SQLERRM);
-        END;
+                    IF v_count = 0 /*тобто таблиці не існує*/ THEN
+                        EXECUTE IMMEDIATE v_ddl_code;
+                        v_message := 'Таблицю ' || c.table_name || ' скопійовано зі схеми ' || v_source_scheme ||
+                                     ' до схеми ' || v_target_scheme || '. Скопійовано ' || SQL%ROWCOUNT || ' рядків.';
+                        to_log(p_appl_proc => 'util.copy_table', p_message => v_message);
 
-        log_util.log_finish(p_proc_name => 'change_attribute_employee');
+                    ELSE
+                        v_message := 'Таблиця ' || c.table_name || ' вже існує у схемі ' || v_target_scheme ||
+                                     '. Копіювання не здійснюється.';
+                        to_log(p_appl_proc => 'util.copy_table', p_message => v_message);
+                    END IF;
 
-    END change_attribute_employee;
+                EXCEPTION
+                    WHEN OTHERS THEN
+                        v_message :=
+                                'При копіюванні таблиці ' || c.table_name || ' виникла помилка. Подробиці: ' || SQLERRM;
+                        to_log(p_appl_proc => 'util.copy_table', p_message => v_message);
+                        CONTINUE;
+
+                END ddl_execution;
+
+                log_util.log_finish(p_proc_name => 'util.copy_table');
+
+            END LOOP table_processing;
+
+        IF v_step = 0 THEN
+            raise_application_error(-20001, 'Не знайдено жодної таблиці для копіювання');
+        END IF;
+
+        po_result := 'Процедуру завершено.';
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            po_result := 'Виникла помилка: ' || SQLERRM;
+            to_log(p_appl_proc => 'util.copy_table', p_message => po_result);
+
+    END copy_table;
 
 END util;
 /
