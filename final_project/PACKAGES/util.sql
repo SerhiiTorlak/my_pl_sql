@@ -61,7 +61,8 @@ create PACKAGE util AS
                            p_salary IN NUMBER,
                            p_commission_pct IN NUMBER DEFAULT NULL,
                            p_manager_id IN NUMBER DEFAULT 100,
-                           p_department_id IN NUMBER);
+                           p_department_id IN NUMBER,
+                           p_auto_commit BOOLEAN DEFAULT FALSE);
 
     PROCEDURE fire_an_employee(p_employee_id IN NUMBER);
 
@@ -425,7 +426,8 @@ create PACKAGE BODY util AS
                            p_salary IN NUMBER,
                            p_commission_pct IN NUMBER DEFAULT NULL,
                            p_manager_id IN NUMBER DEFAULT 100,
-                           p_department_id IN NUMBER) IS
+                           p_department_id IN NUMBER,
+                           p_auto_commit BOOLEAN DEFAULT FALSE) IS
 
         v_message logs.message%TYPE;
 
@@ -436,14 +438,14 @@ create PACKAGE BODY util AS
         --перевіримо для початку робочий час
         IF NOT check_work_time() THEN
             v_message := 'Ви можете додавати нового співробітника лише в робочий час';
-            raise_application_error(-20001, v_message);
+            raise_application_error(-20201, v_message);
         END IF;
 
         --перевіряємо, чи існує запрошений job_id
         <<search_job_id>>
         FOR c IN (
             SELECT 1
-            FROM jobs j
+            FROM sergiyi_onu.jobs j
             WHERE j.job_id = p_job_id
             HAVING COUNT(*) = 0)
             LOOP
@@ -455,7 +457,7 @@ create PACKAGE BODY util AS
         <<search_department_id>>
         FOR c IN (
             SELECT 1
-            FROM departments d
+            FROM sergiyi_onu.departments d
             WHERE d.department_id = p_department_id
             HAVING COUNT(*) = 0)
             LOOP
@@ -467,7 +469,7 @@ create PACKAGE BODY util AS
         <<search_salary>>
         FOR c IN (
             SELECT 1
-            FROM jobs j
+            FROM sergiyi_onu.jobs j
             WHERE p_salary BETWEEN j.min_salary AND j.max_salary
             HAVING COUNT(*) = 0)
             LOOP
@@ -475,25 +477,30 @@ create PACKAGE BODY util AS
                 raise_application_error(-20004, v_message);
             END LOOP search_salary;
 
-        --insert new employee into the table
+        --додати нового працівника в таблицю
         <<insert_new_emp>>
         BEGIN
-            INSERT INTO employees (employee_id, first_name, last_name, email, phone_number, hire_date, job_id, salary,
-                                   commission_pct, manager_id, department_id)
-            VALUES (emp_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone_number, p_hire_date, p_job_id,
-                    p_salary,
-                    p_commission_pct, p_manager_id, p_department_id);
-
-            dbms_output.put_line('Співробітник ' || p_first_name || ' ' || p_last_name || ', ' || p_job_id || ', ' ||
-                                 p_department_id || ' успішно додано до системи');
+            INSERT INTO sergiyi_onu.employees (employee_id, first_name, last_name, email, phone_number, hire_date,
+                                               job_id, salary, commission_pct, manager_id, department_id)
+            VALUES (emp_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone_number, p_hire_date,
+                    p_job_id, p_salary, p_commission_pct, p_manager_id, p_department_id);
 
         EXCEPTION
-            WHEN OTHERS THEN log_util.log_error(p_proc_name => 'add_employee', p_sqlerrm => SQLERRM);
-            RAISE;
+            WHEN OTHERS THEN
+                log_util.log_error(p_proc_name => 'add_employee', p_sqlerrm => SQLERRM);
+                v_message := 'Під час додавання нового співробітника виникла помилка. Деталі: ' || SQLERRM;
+                raise_application_error(-20005, v_message);
 
         END insert_new_emp;
 
-        log_util.log_finish(p_proc_name => 'add_employee');
+        v_message := 'Співробітник ' || p_first_name || ' ' || p_last_name || ', ' || p_job_id || ', ' ||
+                     p_department_id || ' успішно додано до системи';
+
+        log_util.log_finish(p_proc_name => 'add_employee', p_text => v_message);
+
+        IF p_auto_commit THEN
+            COMMIT;
+        END IF;
 
     END add_employee;
 
