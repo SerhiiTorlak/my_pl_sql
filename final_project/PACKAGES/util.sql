@@ -644,8 +644,6 @@ create PACKAGE BODY util AS
                 raise_application_error(-20001, 'При зміні атрибутів виникла помилка. Подробиці: ' || SQLERRM);
         END execute_sql;
 
-        log_util.log_finish(p_proc_name => 'change_attribute_employee');
-
     END change_attribute_employee;
 
     PROCEDURE copy_table(p_source_scheme IN VARCHAR2,
