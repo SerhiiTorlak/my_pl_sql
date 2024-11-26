@@ -64,7 +64,8 @@ create PACKAGE util AS
                            p_department_id IN NUMBER,
                            p_auto_commit BOOLEAN DEFAULT FALSE);
 
-    PROCEDURE fire_an_employee(p_employee_id IN NUMBER);
+    PROCEDURE fire_an_employee(p_employee_id IN NUMBER,
+                               p_auto_commit BOOLEAN DEFAULT FALSE);
 
     PROCEDURE change_attribute_employee(p_employee_id IN NUMBER,
                                         p_first_name IN VARCHAR2 DEFAULT NULL,
@@ -504,7 +505,8 @@ create PACKAGE BODY util AS
 
     END add_employee;
 
-    PROCEDURE fire_an_employee(p_employee_id IN NUMBER) IS
+    PROCEDURE fire_an_employee(p_employee_id IN NUMBER,
+                               p_auto_commit BOOLEAN DEFAULT FALSE) IS
 
         v_emp_name   employees.first_name%TYPE;
         v_emp_l_name employees.last_name%TYPE;
@@ -524,13 +526,13 @@ create PACKAGE BODY util AS
 
         SELECT e.first_name, e.last_name, e.job_id, e.department_id
         INTO v_emp_name, v_emp_l_name, v_job_id, v_dep_id
-        FROM employees e
+        FROM sergiyi_onu.employees e
         WHERE e.employee_id = p_employee_id;
 
         <<delete_emp>>
         BEGIN
             DELETE
-            FROM employees e
+            FROM sergiyi_onu.employees e
             WHERE e.employee_id = p_employee_id;
 
         EXCEPTION
@@ -539,12 +541,14 @@ create PACKAGE BODY util AS
                 raise_application_error(-20006, 'При видаленні співробітника виникла помилка. Подробиці: ' || SQLERRM);
         END delete_emp;
 
-        dbms_output.put_line('Співробітник ' || v_emp_name || ' ' || v_emp_l_name || ', ' || v_job_id || ', ' ||
-                             v_dep_id || ' успішно видалений');
+        v_message := 'Співробітник ' || v_emp_name || ' ' || v_emp_l_name || ', ' || v_job_id || ', ' ||
+                     v_dep_id || ' успішно видалений';
 
-        log_util.log_finish(p_proc_name => 'fire_an_employee', p_text => 'Працівник успішно видалений.');
+        log_util.log_finish(p_proc_name => 'fire_an_employee', p_text => v_message);
 
-        COMMIT;
+        IF p_auto_commit THEN
+            COMMIT;
+        END IF;
 
     EXCEPTION
         WHEN no_data_found
