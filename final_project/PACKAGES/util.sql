@@ -558,6 +558,96 @@ create PACKAGE BODY util AS
 
     END fire_an_employee;
 
+    PROCEDURE change_attribute_employee(p_employee_id IN NUMBER,
+                                        p_first_name IN VARCHAR2 DEFAULT NULL,
+                                        p_last_name IN VARCHAR2 DEFAULT NULL,
+                                        p_email IN VARCHAR2 DEFAULT NULL,
+                                        p_phone_number IN VARCHAR2 DEFAULT NULL,
+                                        p_job_id IN VARCHAR2 DEFAULT NULL,
+                                        p_salary IN NUMBER DEFAULT NULL,
+                                        p_commission_pct IN NUMBER DEFAULT NULL,
+                                        p_manager_id IN NUMBER DEFAULT NULL,
+                                        p_department_id IN NUMBER DEFAULT NULL) IS
+
+        v_message  logs.message%TYPE;
+        v_step     NUMBER := 0;
+        v_sql_part VARCHAR2(500);
+        v_sql      VARCHAR2(500);
+
+    BEGIN
+
+        log_util.log_start(p_proc_name => 'change_attribute_employee');
+
+        IF COALESCE(p_first_name,
+                    p_last_name,
+                    p_email,
+                    p_phone_number,
+                    p_job_id,
+                    to_char(p_salary),
+                    to_char(p_commission_pct),
+                    to_char(p_manager_id),
+                    to_char(p_department_id)) IS NULL THEN
+
+            log_util.log_finish(p_proc_name => 'change_attribute_employee', p_text => 'Немає данних для оновлення.');
+            raise_application_error(-20007, 'Не вказаний жоден із параметрів для оновлення');
+
+        END IF;
+
+        --перевіряємо, чи є такий працівник
+        <<search_employee>>
+        FOR c IN (
+            SELECT 1
+            FROM sergiyi_onu.employees e
+            WHERE e.employee_id = p_employee_id
+            HAVING COUNT(*) = 0)
+            LOOP
+                v_message := 'Працівника з таким ід немає';
+                raise_application_error(-20004, v_message);
+            END LOOP search_employee;
+
+        <<create_sql>>
+        FOR c IN (SELECT col_name, col_val
+                  FROM (SELECT column_name                              as col_name,
+                               DECODE(LOWER(column_name),
+                                      'first_name', p_first_name,
+                                      'last_name', p_last_name,
+                                      'email', p_email,
+                                      'phone_number', p_phone_number,
+                                      'job_id', p_job_id,
+                                      'salary', p_salary,
+                                      'commission_pct', p_commission_pct,
+                                      'manager_id', p_manager_id,
+                                      'department_id', p_department_id) as col_val
+                        FROM ALL_TAB_COLUMNS
+                        WHERE OWNER = USER
+                          AND TABLE_NAME = 'EMPLOYEES')
+                  WHERE col_val IS NOT NULL )
+            LOOP
+
+                v_sql_part :=
+                        v_sql_part || CASE v_step WHEN 0 THEN '' ELSE ',' END
+                            || c.col_name || '=''' || c.col_val || ''' ';
+                v_step := v_step + 1;
+            END LOOP create_sql;
+
+        v_sql := 'UPDATE sergiyi_onu.employees SET ' || v_sql_part || ' WHERE employee_id = ' || p_employee_id;
+
+        <<execute_sql>>
+        BEGIN
+            EXECUTE IMMEDIATE v_sql;
+            v_message := 'У співробітника ' || p_employee_id || ' успішно оновлені атрибути';
+            log_util.log_finish(p_proc_name => 'change_attribute_employee', p_text => v_message);
+
+        EXCEPTION
+            WHEN OTHERS THEN
+                log_util.log_error(p_proc_name => 'change_attribute_employee', p_sqlerrm => SQLERRM);
+                raise_application_error(-20001, 'При зміні атрибутів виникла помилка. Подробиці: ' || SQLERRM);
+        END execute_sql;
+
+        log_util.log_finish(p_proc_name => 'change_attribute_employee');
+
+    END change_attribute_employee;
+
     PROCEDURE copy_table(p_source_scheme IN VARCHAR2,
                          p_target_scheme IN VARCHAR2 DEFAULT USER,
                          p_list_table IN VARCHAR2,
