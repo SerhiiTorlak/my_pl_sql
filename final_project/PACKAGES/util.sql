@@ -82,7 +82,8 @@ create PACKAGE util AS
                          p_target_scheme IN VARCHAR2 DEFAULT USER,
                          p_list_table IN VARCHAR2,
                          p_copy_data IN BOOLEAN DEFAULT FALSE,
-                         po_result OUT VARCHAR2);
+                         po_result OUT VARCHAR2,
+                         p_auto_commit BOOLEAN DEFAULT FALSE);
 
 END util;
 /
@@ -650,35 +651,41 @@ create PACKAGE BODY util AS
                          p_target_scheme IN VARCHAR2 DEFAULT USER,
                          p_list_table IN VARCHAR2,
                          p_copy_data IN BOOLEAN DEFAULT FALSE,
-                         po_result OUT VARCHAR2) IS
+                         po_result OUT VARCHAR2,
+                         p_auto_commit BOOLEAN DEFAULT FALSE) IS
 
         v_source_scheme VARCHAR2(50)  := UPPER(p_source_scheme);
         v_target_scheme VARCHAR2(50)  := UPPER(p_target_scheme);
         v_list_table    VARCHAR2(250) := UPPER(p_list_table);
         v_ddl_code      VARCHAR2(500);
+        v_dml_code      VARCHAR2(500);
         v_step          NUMBER        := 0;
-        v_condition     VARCHAR2(14)  := '';
         v_count         NUMBER;
         v_message       VARCHAR2(250);
 
-    BEGIN
+        PROCEDURE execute_ddl_code(p_sql IN VARCHAR2) IS
+            PRAGMA AUTONOMOUS_TRANSACTION;
+        BEGIN
+            EXECUTE IMMEDIATE p_sql;
+        EXCEPTION
+            WHEN OTHERS THEN
+                log_util.log_error(p_proc_name => 'do_create_table', p_sqlerrm => SQLERRM,
+                                   p_text => 'Помилка створення таблиці');
+        END;
 
-        --перевіряємо, чи треба копіювати вміст таблиці
-        IF NOT p_copy_data THEN
-            v_condition := ' WHERE 1 != 1';
-        END IF;
+    BEGIN
 
         <<table_processing>>
         FOR c IN (
             SELECT table_name
-            FROM all_tables at
+            FROM all_tables
             WHERE OWNER = v_source_scheme
               and table_name in (select value_list
                                  from TABLE (util.TABLE_FROM_LIST(v_list_table))))
             LOOP
 
                 v_ddl_code := 'CREATE TABLE ' || v_target_scheme || '.' || c.table_name || ' AS ' ||
-                              'SELECT * FROM ' || v_source_scheme || '.' || c.table_name || v_condition;
+                              'SELECT * FROM ' || v_source_scheme || '.' || c.table_name || ' WHERE 1 != 1';
                 v_step := v_step + 1;
 
                 <<ddl_execution>>
@@ -691,9 +698,10 @@ create PACKAGE BODY util AS
                       AND table_name = c.table_name;
 
                     IF v_count = 0 /*тобто таблиці не існує*/ THEN
-                        EXECUTE IMMEDIATE v_ddl_code;
+                        execute_ddl_code(v_ddl_code);
                         v_message := 'Таблицю ' || c.table_name || ' скопійовано зі схеми ' || v_source_scheme ||
-                                     ' до схеми ' || v_target_scheme || '. Скопійовано ' || SQL%ROWCOUNT || ' рядків.';
+                                     ' до схеми ' || v_target_scheme;
+                        --|| '. Скопійовано ' || SQL%ROWCOUNT || ' рядків.';
                         to_log(p_appl_proc => 'util.copy_table', p_message => v_message);
 
                     ELSE
@@ -711,12 +719,48 @@ create PACKAGE BODY util AS
 
                 END ddl_execution;
 
+                --перевіряємо, чи треба копіювати вміст таблиці
+                IF p_copy_data THEN
+
+                    v_dml_code := 'INSERT INTO ' || v_target_scheme || '.' || c.table_name ||
+                                  'SELECT * FROM ' || v_source_scheme || '.' || c.table_name;
+
+                    <<dml_execution>>
+                    BEGIN
+                        IF v_count = 0 /*тобто таблиці не існувало*/ THEN
+                            EXECUTE IMMEDIATE v_dml_code;
+                            v_message := 'До таблиці ' || v_target_scheme || '.' || c.table_name || ' скопійовано ' ||
+                                         SQL%ROWCOUNT || ' рядків з таблиці ' || v_source_scheme || '.' || c.table_name;
+                            to_log(p_appl_proc => 'util.copy_table', p_message => v_message);
+
+                        ELSE
+                            v_message := 'Таблиця ' || c.table_name || ' вже існує у схемі ' || v_target_scheme ||
+                                         '. Копіювання не здійснюється.';
+                            to_log(p_appl_proc => 'util.copy_table', p_message => v_message);
+                        END IF;
+
+                    EXCEPTION
+                        WHEN OTHERS THEN
+                            v_message :=
+                                    'При копіюванні даних до таблиці ' || c.table_name ||
+                                    ' виникла помилка. Подробиці: ' || SQLERRM;
+                            to_log(p_appl_proc => 'util.copy_table', p_message => v_message);
+                            CONTINUE;
+
+                    END dml_execution;
+
+                END IF;
+
                 log_util.log_finish(p_proc_name => 'util.copy_table');
 
             END LOOP table_processing;
 
         IF v_step = 0 THEN
             raise_application_error(-20001, 'Не знайдено жодної таблиці для копіювання');
+        END IF;
+
+        IF p_auto_commit THEN
+            COMMIT;
         END IF;
 
         po_result := 'Процедуру завершено.';
