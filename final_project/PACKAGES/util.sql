@@ -701,7 +701,6 @@ create PACKAGE BODY util AS
                         execute_ddl_code(v_ddl_code);
                         v_message := 'Таблицю ' || c.table_name || ' скопійовано зі схеми ' || v_source_scheme ||
                                      ' до схеми ' || v_target_scheme;
-                        --|| '. Скопійовано ' || SQL%ROWCOUNT || ' рядків.';
                         to_log(p_appl_proc => 'util.copy_table', p_message => v_message);
 
                     ELSE
