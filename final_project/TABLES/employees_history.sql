@@ -1,4 +1,4 @@
-create table employees_history as
+create table sergiyi_onu.employees_history as
 select employee_id,
        first_name,
        last_name,

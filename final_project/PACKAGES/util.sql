@@ -85,6 +85,8 @@ create PACKAGE util AS
                          po_result OUT VARCHAR2,
                          p_auto_commit BOOLEAN DEFAULT FALSE);
 
+    PROCEDURE api_nbu_sync;
+
 END util;
 /
 
@@ -770,6 +772,72 @@ create PACKAGE BODY util AS
             to_log(p_appl_proc => 'util.copy_table', p_message => po_result);
 
     END copy_table;
+
+    PROCEDURE api_nbu_sync IS
+
+        v_list_currencies sergiyi_onu.sys_params.value_text%TYPE;
+        v_message         VARCHAR2(100);
+
+    BEGIN
+
+        sergiyi_onu.log_util.log_start(p_proc_name => 'api_nbu_sync');
+
+        <<get_curr_list>>
+        BEGIN
+
+            SELECT value_text
+            INTO v_list_currencies
+            FROM sergiyi_onu.sys_params
+            WHERE param_name = 'list_currencies';
+
+        EXCEPTION
+            WHEN no_data_found THEN
+                v_message := 'Список валют не знайдено. Перевірте коректність даних';
+                sergiyi_onu.log_util.log_error(p_proc_name => 'api_nbu_sync', p_sqlerrm => SQLERRM,
+                                               p_text => v_message);
+                raise_application_error(-20001, v_message);
+            WHEN too_many_rows THEN
+                v_message := 'В таблиці sys_params більше одного рядка з параметром list_currencies';
+                sergiyi_onu.log_util.log_error(p_proc_name => 'api_nbu_sync', p_sqlerrm => SQLERRM,
+                                               p_text => v_message);
+                raise_application_error(-20002, v_message);
+            WHEN OTHERS THEN
+                v_message := 'Сталася помилка. Подробиці: ' || SQLERRM;
+                sergiyi_onu.log_util.log_error(p_proc_name => 'api_nbu_sync', p_sqlerrm => SQLERRM);
+                raise_application_error(-20003, v_message);
+        END get_curr_list;
+
+        <<get_api_data>>
+        FOR c IN ( SELECT value_list AS curr FROM TABLE (util.table_from_list(p_list_val => v_list_currencies)))
+            LOOP
+
+                <<insert_into_table>>
+                BEGIN
+                    INSERT INTO sergiyi_onu.cur_exchange (r030, txt, rate, cur, exchangedate)
+                    SELECT r030, txt, rate, cur, exchangedate
+                    FROM TABLE (util.get_currency(p_currency => c.curr));
+
+                    v_message := 'Дані для валюти ' || c.curr || ' успішно оновлені';
+                    sergiyi_onu.log_util.log_finish(p_proc_name => 'api_nbu_sync', p_text => v_message);
+
+                EXCEPTION
+                    WHEN OTHERS THEN
+                        v_message := 'Сталася помилка. Подробиці: ' || SQLERRM;
+                        sergiyi_onu.log_util.log_error(p_proc_name => 'api_nbu_sync', p_sqlerrm => SQLERRM);
+                        raise_application_error(-20004, v_message);
+                END insert_into_table;
+            END LOOP get_api_data;
+
+        v_message := 'Синхронізація успішно завершена';
+        sergiyi_onu.log_util.log_finish(p_proc_name => 'api_nbu_sync', p_text => v_message);
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            log_util.log_error(p_proc_name => 'api_nbu_sync', p_sqlerrm => SQLERRM);
+            v_message := 'Виникла невідома помилка. Подробиці: ' || SQLERRM;
+            raise_application_error(-20005, v_message);
+
+    END api_nbu_sync;
 
 END util;
 /

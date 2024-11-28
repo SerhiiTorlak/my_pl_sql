@@ -1,4 +1,4 @@
-CREATE TABLE logs
+CREATE TABLE sergiyi_onu.logs
 (
     id        NUMBER,
     appl_proc VARCHAR2(50),
