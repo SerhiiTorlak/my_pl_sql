@@ -1,22 +1,22 @@
---ïåðåâ³ðêà òàáëèö³ sys_params
+--Ð¿ÐµÑ€ÐµÐ²Ñ–Ñ€ÐºÐ° Ñ‚Ð°Ð±Ð»Ð¸Ñ†Ñ– sys_params
 SELECT *
 FROM sergiyi_onu.sys_params;
 
---ïåðåâ³ðêà òàáëèö³ cur_exchange
+--Ð¿ÐµÑ€ÐµÐ²Ñ–Ñ€ÐºÐ° Ñ‚Ð°Ð±Ð»Ð¸Ñ†Ñ– cur_exchange
 SELECT *
 FROM sergiyi_onu.cur_exchange;
 
---ðó÷íèé çàïóñê ïðîöåäóðè
+--Ñ€ÑƒÑ‡Ð½Ð¸Ð¹ Ð·Ð°Ð¿ÑƒÑÐº Ð¿Ñ€Ð¾Ñ†ÐµÐ´ÑƒÑ€Ð¸
 BEGIN
     sergiyi_onu.util.api_nbu_sync();
 END;
 /
 
---ïåðåâ³ðêà ñòâîðåíîãî äæîáñà
+--Ð¿ÐµÑ€ÐµÐ²Ñ–Ñ€ÐºÐ° ÑÑ‚Ð²Ð¾Ñ€ÐµÐ½Ð¾Ð³Ð¾ Ð´Ð¶Ð¾Ð±ÑÐ°
 SELECT *
 FROM all_scheduler_jobs;
 
---âèìêíóòè äæîáñ
+--Ð²Ð¸Ð¼ÐºÐ½ÑƒÑ‚Ð¸ Ð´Ð¶Ð¾Ð±Ñ
 BEGIN
     dbms_scheduler.disable(name=>'SYNC_CURRENCIES_JOB', force => TRUE);
 END;
