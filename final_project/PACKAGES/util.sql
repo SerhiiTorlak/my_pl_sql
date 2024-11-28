@@ -679,11 +679,8 @@ create PACKAGE BODY util AS
 
         <<table_processing>>
         FOR c IN (
-            SELECT table_name
-            FROM all_tables
-            WHERE OWNER = v_source_scheme
-              and table_name in (select value_list
-                                 from TABLE (util.TABLE_FROM_LIST(v_list_table))))
+            SELECT value_list as table_name
+            FROM TABLE (util.TABLE_FROM_LIST(v_list_table)))
             LOOP
 
                 v_ddl_code := 'CREATE TABLE ' || v_target_scheme || '.' || c.table_name || ' AS ' ||
