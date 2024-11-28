@@ -8,6 +8,6 @@ BEGIN
                                   job_class => 'DEFAULT_JOB_CLASS',
                                   enabled => TRUE,
                                   auto_drop => FALSE,
-                                  comments => 'Оновлення курсу валют');
+                                  comments => 'РћРЅРѕРІР»РµРЅРЅСЏ РєСѓСЂСЃСѓ РІР°Р»СЋС‚');
 END;
 /
