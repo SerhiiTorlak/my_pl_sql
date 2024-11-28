@@ -21,3 +21,8 @@ BEGIN
     dbms_scheduler.disable(name=>'SYNC_CURRENCIES_JOB', force => TRUE);
 END;
 /
+
+--перевіримо логи
+SELECT *
+FROM sergiyi_onu.logs
+WHERE appl_proc = 'api_nbu_sync';
